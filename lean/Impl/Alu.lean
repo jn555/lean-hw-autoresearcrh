@@ -25,6 +25,10 @@ open Ratchet (Circuit)
   | i + 1 => .or (.and (aIn i) (bIn i))
                  (.and (carry i) (.xor (aIn i) (bIn i)))
 
-@[simp] def out (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
+@[simp] def halfSum (i : Nat) : Circuit := .xor (aIn i) (bIn i)
+
+@[simp] def out (i : Nat) : Circuit :=
+  .or (.and (carry i) (.not (halfSum i)))
+      (.and (.not (carry i)) (halfSum i))
 
 end Ratchet.Impl
