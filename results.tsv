@@ -11,3 +11,4 @@ ce2db96	77	PASS	keep	DONT-CARE: isSub=op0 alone — arith leg unselected when op
 75bbdc9	175	PASS	keep	ALU2 baseline: 8 independent datapaths, two dedicated comparator chains, 3-level mux tree
 e851814	180	PASS	discard	fused add/sub alone — correct but +5: bEff=b^isSub breaks ABC sharing of a^b,a&b with logic/compare paths
 3021f6b	157	PASS	keep	UNIFIED CORE: add/sub/sltu(=not carry8)/slt(=N xor V) share ONE carry chain; both comparator chains deleted
+8566406	0	FAIL	discard	slt=sign(a-b) w/o overflow fix — counterexample op=6 a=175 b=106 (a-b=-187 overflows, sign bit lies)
