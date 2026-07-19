@@ -7,3 +7,4 @@ bd5cd16	0	FAIL	discard	g/p carry chain with p=a|b reused as half-sum — counter
 3e1f4a6	34	PASS	discard	mux-form sum (c&~h)|(~c&h) — ABC re-derives the xor, tie at 34, xor form simpler
 0a222f5	105	PASS	keep	ALU baseline: 4 independent datapaths (adder, subtractor, and, xor) + mux tree
 9767615	91	PASS	keep	STRUCTURAL: deleted subtractor datapath — shared adder a+(b^isSub)+isSub, arith mux leg collapsed
+ce2db96	77	PASS	keep	DONT-CARE: isSub=op0 alone — arith leg unselected when op1=1, prover certifies the exploitation
