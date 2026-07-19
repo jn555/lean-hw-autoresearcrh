@@ -1,0 +1,2 @@
+commit	cells	proof	status	description
+b069e6f	40	PASS	keep	baseline: naive ripple-carry, xor expanded to and/or/not, 3-product majority carry
