@@ -18,23 +18,21 @@ open Ratchet (Circuit)
 @[simp] def bIn  (i : Nat) : Circuit := .input (8 + i)
 @[simp] def opIn (i : Nat) : Circuit := .input (16 + i)
 
-/- Seed: four fully independent datapaths (ripple adder, ripple subtractor,
-   and-array, xor-array) and a gate-level mux tree per output bit.
-   op 00 = add, 01 = sub, 10 = and, 11 = xor. Naive on purpose. -/
+/- Structural restructure: the subtractor is GONE. One shared adder computes
+   a + (b ^ isSub) + isSub, since a - b = a + (not b) + 1. The arithmetic
+   side of the mux tree collapses to a single leg.
+   op 00 = add, 01 = sub, 10 = and, 11 = xor. -/
+
+@[simp] def isSub : Circuit := .and (.not (opIn 1)) (opIn 0)
+
+@[simp] def bEff (i : Nat) : Circuit := .xor (bIn i) isSub
 
 @[simp] def carry : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (aIn i) (bIn i))
-                 (.and (carry i) (.xor (aIn i) (bIn i)))
+  | 0     => isSub
+  | i + 1 => .or (.and (aIn i) (bEff i))
+                 (.and (carry i) (.xor (aIn i) (bEff i)))
 
-@[simp] def addBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
-
-@[simp] def borrow : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
-                 (.and (borrow i) (.not (.xor (aIn i) (bIn i))))
-
-@[simp] def subBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (borrow i)
+@[simp] def arithBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bEff i)) (carry i)
 
 @[simp] def andBit (i : Nat) : Circuit := .and (aIn i) (bIn i)
 @[simp] def xorBit (i : Nat) : Circuit := .xor (aIn i) (bIn i)
@@ -44,6 +42,6 @@ open Ratchet (Circuit)
 
 @[simp] def out (i : Nat) : Circuit :=
   mux (opIn 1) (mux (opIn 0) (xorBit i) (andBit i))
-               (mux (opIn 0) (subBit i) (addBit i))
+               (arithBit i)
 
 end Ratchet.Impl
