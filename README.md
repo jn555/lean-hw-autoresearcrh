@@ -19,6 +19,22 @@ cells
 
 ## TL;DR
 
+**Every attempt, at a glance** — three runs, nine experiments, every verdict machine-made:
+
+| run | circuit | attempt | verdict | cells |
+|---|---|---|---|---|
+| 1 | 8-bit adder | native XOR cells instead of and/or/not trees | ✅ **kept** | 40 → **34** |
+| 1 | | carry-lookahead, `p = a\|b` reused as half-sum | ❌ **wrong** — counterexample `a=255, b=255` | — |
+| 1 | | or-propagate carry | ❌ correct but **+6 cells** | — |
+| 1 | | const-fold bit 0 · mux-form sum | ➖ ties — synthesis already does both | — |
+| 2 | 4-op ALU | **delete subtractor**: shared adder `a + (b⊕isSub) + isSub` | ✅ **kept** | 105 → **91** |
+| 2 | | **don't-care**: `isSub = op₀` alone (guard provably redundant) | ✅ **kept** | 91 → **77** |
+| 3 | 8-op ALU | run-2 fusion applied *alone* | ❌ correct but **+5** — breaks synthesis sharing | — |
+| 3 | | **unified core**: add/sub/sltu/slt all tap ONE carry chain | ✅ **kept** | 175 → **157** |
+| 3 | | `slt` = sign bit only (drop overflow fix) | ❌ **wrong** — counterexample `a=−81, b=106` | — |
+
+Every ✅ is a git commit carrying a machine-checked theorem; every ❌ cost ~3 seconds.
+
 - **The loop:** an AI agent redesigns a circuit, over and over. A frozen scorer demands a
   **machine-checked proof** that it still implements the spec, then a **lower gate count**
   from synthesis. Keep, or `git reset --hard`.
