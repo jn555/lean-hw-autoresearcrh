@@ -10,3 +10,4 @@ bd5cd16	0	FAIL	discard	g/p carry chain with p=a|b reused as half-sum — counter
 ce2db96	77	PASS	keep	DONT-CARE: isSub=op0 alone — arith leg unselected when op1=1, prover certifies the exploitation
 75bbdc9	175	PASS	keep	ALU2 baseline: 8 independent datapaths, two dedicated comparator chains, 3-level mux tree
 e851814	180	PASS	discard	fused add/sub alone — correct but +5: bEff=b^isSub breaks ABC sharing of a^b,a&b with logic/compare paths
+3021f6b	157	PASS	keep	UNIFIED CORE: add/sub/sltu(=not carry8)/slt(=N xor V) share ONE carry chain; both comparator chains deleted
