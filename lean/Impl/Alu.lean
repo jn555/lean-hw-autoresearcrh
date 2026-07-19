@@ -17,14 +17,16 @@ open Ratchet (Circuit)
 @[simp] def aIn (i : Nat) : Circuit := .input i
 @[simp] def bIn (i : Nat) : Circuit := .input (8 + i)
 
-/- Ripple-carry with native xor gates: sum = a ^ b ^ c,
-   carry = (a & b) | (c & (a ^ b)). -/
+/- Generate/propagate form: g = a & b, p = a | b, carry = g | (p & c),
+   sum = p ^ c. Reuses p for the half-sum to save the xor gates. -/
+
+@[simp] def gen (i : Nat) : Circuit := .and (aIn i) (bIn i)
+@[simp] def prp (i : Nat) : Circuit := .or (aIn i) (bIn i)
 
 @[simp] def carry : Nat → Circuit
   | 0     => .const false
-  | i + 1 => .or (.and (aIn i) (bIn i))
-                 (.and (carry i) (.xor (aIn i) (bIn i)))
+  | i + 1 => .or (gen i) (.and (prp i) (carry i))
 
-@[simp] def out (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
+@[simp] def out (i : Nat) : Circuit := .xor (prp i) (carry i)
 
 end Ratchet.Impl
