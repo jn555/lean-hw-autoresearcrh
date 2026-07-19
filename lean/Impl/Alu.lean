@@ -22,48 +22,32 @@ open Ratchet (Circuit)
    dedicated comparator chains. Naive on purpose.
    op 000 add, 001 sub, 010 and, 011 or, 100 xor, 101 sltu, 110 slt, 111 nor. -/
 
+@[simp] def isSub : Circuit := .or (opIn 0) (.and (opIn 1) (opIn 2))
+
+@[simp] def bEff (i : Nat) : Circuit := .xor (bIn i) isSub
+
 @[simp] def carry : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (aIn i) (bIn i))
-                 (.and (carry i) (.xor (aIn i) (bIn i)))
+  | 0     => isSub
+  | i + 1 => .or (.and (aIn i) (bEff i))
+                 (.and (carry i) (.xor (aIn i) (bEff i)))
 
-@[simp] def addBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
-
-@[simp] def borrow : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
-                 (.and (borrow i) (.not (.xor (aIn i) (bIn i))))
-
-@[simp] def subBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (borrow i)
+@[simp] def arithBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bEff i)) (carry i)
 
 @[simp] def andBit (i : Nat) : Circuit := .and (aIn i) (bIn i)
 @[simp] def orBit  (i : Nat) : Circuit := .or (aIn i) (bIn i)
 @[simp] def xorBit (i : Nat) : Circuit := .xor (aIn i) (bIn i)
 @[simp] def norBit (i : Nat) : Circuit := .and (.not (aIn i)) (.not (bIn i))
 
-/-- Unsigned a < b, LSB-up chain, dedicated to sltu. -/
-@[simp] def ultC : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
-                 (.and (.not (.xor (aIn i) (bIn i))) (ultC i))
-
-/-- A second, independent comparator chain, dedicated to slt. -/
-@[simp] def ultS : Nat → Circuit
-  | 0     => .const false
-  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
-                 (.and (.not (.xor (aIn i) (bIn i))) (ultS i))
-
-/-- Signed a < b: signs differ → a is the negative one; else unsigned order. -/
-@[simp] def sltRes : Circuit :=
-  .or (.and (aIn 7) (.not (bIn 7)))
-      (.and (.not (.xor (aIn 7) (bIn 7))) (ultS 8))
+/- Both comparisons ride the shared subtract chain:
+   sltu:  a < b  unsigned  =  not carry-out of a + (not b) + 1
+   slt:   N xor V, N = sign of a-b, V = carryIntoMsb xor carryOut. -/
 
 @[simp] def sltuBit : Nat → Circuit
-  | 0 => ultC 8
+  | 0 => .not (carry 8)
   | _ => .const false
 
 @[simp] def sltBit : Nat → Circuit
-  | 0 => sltRes
+  | 0 => .xor (arithBit 7) (.xor (carry 7) (carry 8))
   | _ => .const false
 
 /-- s = true selects x. -/
@@ -74,6 +58,6 @@ open Ratchet (Circuit)
     (mux (opIn 1) (mux (opIn 0) (norBit i) (sltBit i))
                   (mux (opIn 0) (sltuBit i) (xorBit i)))
     (mux (opIn 1) (mux (opIn 0) (orBit i) (andBit i))
-                  (mux (opIn 0) (subBit i) (addBit i)))
+                  (arithBit i))
 
 end Ratchet.Impl
