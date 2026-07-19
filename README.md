@@ -40,10 +40,12 @@ Every ✅ is a git commit carrying a machine-checked theorem; every ❌ cost ~3 
   from synthesis. Keep, or `git reset --hard`.
 - **Both signals are exact.** The proof is binary, the cell count deterministic — no noise,
   no flaky wins. Every kept design carries a theorem.
-- **Nobody writes proofs.** Not the human, not the AI. One frozen tactic (bit-blast → SAT →
-  formally-verified certificate check) closes equivalence for any circuit the agent invents.
-  Manual proof labor is what kept theorem proving out of hardware for 30 years — industry
-  settled for model checking; that wall is gone.
+- **Proofs are automated — at two levels.** At this scale, equivalence is push-button:
+  bit-blast → SAT → formally-verified certificate check. Bigger structures — pipelines,
+  caches — can't just be bit-blasted; they need real Lean refinement proofs, and *that is
+  the AI's job too*: the agent writes the proof, the kernel checks it. An AI-written proof
+  needs zero trust — wrong proofs don't compile. Manual proof labor kept theorem proving
+  out of hardware for 30 years (industry settled for model checking); that wall is gone.
 - **Three teams, one loop.** Architecture explores, design implements, verification signs
   off — traditionally three stages, three teams, months of handoffs. Here they collapse into
   a 3-second iteration: every surviving idea is already implemented, verified, benchmarked.
@@ -246,7 +248,7 @@ flowchart TD
 
 - **One system end-to-end:** spec, circuit, equivalence theorem, Verilog emitter — all in one Lean file. No toolchain seam where meaning silently changes; one `#print axioms` audit covers spec-to-silicon.
 
-- **Proofs are push-button:** `bv_decide` bit-blasts to SAT (CaDiCaL), and the certificate is validated by a *formally verified* LRAT checker in the kernel. The agent never writes a proof — only circuits. Correctness is one tactic line, locked forever.
+- **Proofs are automated:** at this scale `bv_decide` bit-blasts to SAT (CaDiCaL) and a *formally verified* LRAT checker validates the certificate — one frozen tactic line. Where bit-blasting ends (sequential refinement, cache coherence), the AI writes the Lean proof itself — and the kernel checks it, so an AI-written proof requires zero trust.
 
 - **The gate is adversary-proof:** A motivated optimizer cannot fake a theorem past the Lean kernel plus an axiom allowlist. This is exactly what you need when the designer is an AI chasing a score.
 
