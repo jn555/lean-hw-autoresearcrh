@@ -22,9 +22,12 @@ open Ratchet (Circuit)
 
 @[simp] def carry : Nat → Circuit
   | 0     => .const false
+  | 1     => .and (aIn 0) (bIn 0)
   | i + 1 => .or (.and (aIn i) (bIn i))
                  (.and (carry i) (.xor (aIn i) (bIn i)))
 
-@[simp] def out (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
+@[simp] def out : Nat → Circuit
+  | 0 => .xor (aIn 0) (bIn 0)
+  | i => .xor (.xor (aIn i) (bIn i)) (carry i)
 
 end Ratchet.Impl
