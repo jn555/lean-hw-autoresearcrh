@@ -1,11 +1,11 @@
-# Ratchet
+# lean-hw-autoresearch
 
 **An autoresearch loop for hardware design — where the metric only moves one way.**
 
 An AI agent redesigns a circuit over and over. Every revision must **prove itself
 mathematically equivalent** to the spec to be legal, and **synthesize to fewer
-gates** to be kept. Wins are committed. Losses are reverted. Like the tool it's
-named after, the loop physically cannot turn backwards.
+gates** to be kept. Wins are committed. Losses are reverted. The loop cannot
+turn backwards.
 
 ```
 cells
@@ -25,10 +25,10 @@ coding agent following a protocol file — edit one file, run a frozen scorer,
 keep or `git reset --hard`. Applied to ML training, it hill-climbs validation
 loss.
 
-Ratchet points that loop at **hardware**, and something clicks into place that
-ML can't offer:
+This project points that loop at **hardware**, and something clicks into place
+that ML can't offer:
 
-| | ML autoresearch | **Ratchet** |
+| | ML autoresearch | **lean-hw-autoresearch** |
 |---|---|---|
 | Editable artifact | `train.py` | `lean/Impl/Alu.lean` — a circuit, in Lean |
 | Gate | — | **machine-checked equivalence proof** |
@@ -38,8 +38,7 @@ ML can't offer:
 A training loss moves ~±0.03 between identical runs, so ML loops need
 statistical gating to avoid chasing noise. Here the verifier is **exact**: the
 proof is binary and the cell count is deterministic. *Every accepted improvement
-is real.* No flaky wins, no optimistic running minimum — a ratchet, not a
-random walk.
+is real.* No flaky wins, no optimistic running minimum.
 
 ## How one iteration works
 
@@ -114,6 +113,50 @@ flowchart TD
   smuggled `sorry`, and a tampered spec were each fed in and each rejected.
   An untested gate is not a gate.
 
+## This adder is a proof of concept. The contract is the point.
+
+Everything above runs on an 8-bit adder — deliberately the smallest thing that
+closes the whole loop. But notice what the loop's contract actually says:
+
+> *Any* revision is legal if a theorem certifies the property still holds.
+> *Any* legal revision is kept if a deterministic metric improves.
+
+Neither signal cares that the circuit is small, or that the change is local.
+That contract is what changes hardware research:
+
+**1. Radical redesign becomes safe to search.** In a normal flow, structural
+change is expensive because re-verification is expensive — so exploration stays
+timid, near the known-good design. Here, legality never comes from resembling
+the previous design; it comes from the proof. An agent can rip out the carry
+chain, re-encode the state machine, restructure the datapath — and the only
+question is whether the theorem still closes. **Boldness is free; wrongness is
+caught in seconds.**
+
+**2. The proven property can be high-level.** Bit-exact I/O equivalence is just
+the PoC instance. The same gate design extends up the stack:
+
+| redesign target | what the agent may change | what the theorem pins down |
+|---|---|---|
+| combinational blocks *(this repo)* | gate structure, encodings | exact I/O equivalence |
+| pipelined units & cores | depth, forwarding, scheduling | refinement of the ISA-level spec |
+| caches & memory hierarchy | associativity, banking, eviction structure | still implements the coherent-memory abstraction |
+| arbiters, queues, interconnect | arbitration structure | no request lost, bounded response |
+| security-sensitive datapaths | anything | timing-invariance-style properties |
+
+Sequential designs decompose the same way: supply a relation between spec state
+and implementation state, and the per-step obligations remain finite bitvector
+goals — the same push-button SAT as today. The optimizer explores structure;
+the *invariant is held by machine, not by review*.
+
+**3. And it provably actually optimizes.** The other half of the contract is
+just as load-bearing: the objective is a real synthesis metric — cell count
+today; area under a timing constraint, logic depth, or an energy proxy with a
+one-line change to the frozen Yosys script — and it is deterministic. Progress
+is monotone by construction. Point it at a design where the optimal answer
+isn't in a textbook, give it volume (parallel searches in git worktrees,
+overnight, a stronger model when it stalls), and every design the loop ever
+returns comes with a theorem attached.
+
 ## What's in the box
 
 ```
@@ -148,16 +191,7 @@ Needs Lean 4.32 (via elan), Yosys, and a coding agent — or you, playing one:
 - The Verilog emitter (~20 lines of `score.sh`-guarded Lean) is trusted, not
   proved: the theorem is about the Lean term, the cell count is about its
   emitted Verilog. Co-simulation across that seam is the next gate to add.
-- Current spec is an 8-bit adder — deliberately small, chosen so the whole loop
-  closed in an afternoon. The shape generalizes: wider ALUs, then sequential
-  circuits via refinement proofs, with SAT staying push-button per step.
+- Sequential/refinement proofs are the designed extension, not yet the demo:
+  what's in this repo is the combinational loop, closed end-to-end.
 
-## Where this goes
-
-An 8-bit adder is the *hello world*, not the point. The point is the shape:
-**an exact, adversary-proof fitness function for hardware**, cheap enough to run
-every few seconds. Put a stronger agent in the loop, run parallel searches in
-git worktrees overnight, point it at circuits where the optimal answer isn't in
-a textbook — and every design it ever returns comes with a theorem attached.
-
-*Built at AGI House. The name is the mechanism: forward is the only direction.*
+*Built in an afternoon at AGI House. Forward is the only direction.*
