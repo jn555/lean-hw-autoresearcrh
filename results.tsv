@@ -1,3 +1,4 @@
 commit	cells	proof	status	description
 b069e6f	40	PASS	keep	baseline: naive ripple-carry, xor expanded to and/or/not, 3-product majority carry
 353e7ac	34	PASS	keep	xor-native full adder: sum=a^b^c, carry=(a&b)|(c&(a^b))
+202d1fb	40	PASS	discard	or-propagate carry (a&b)|((a|b)&c) — correct but +6 cells: loses shared a^b between sum and carry
