@@ -23,7 +23,7 @@ open Ratchet (Circuit)
    side of the mux tree collapses to a single leg.
    op 00 = add, 01 = sub, 10 = and, 11 = xor. -/
 
-@[simp] def isSub : Circuit := .and (.not (opIn 1)) (opIn 0)
+@[simp] def isSub : Circuit := opIn 0
 
 @[simp] def bEff (i : Nat) : Circuit := .xor (bIn i) isSub
 
