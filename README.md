@@ -17,6 +17,30 @@ cells
 
 ---
 
+## TL;DR
+
+- **The loop:** an AI agent redesigns a circuit, over and over. A frozen scorer demands a
+  **machine-checked proof** that it still implements the spec, then a **lower gate count**
+  from synthesis. Keep, or `git reset --hard`.
+- **Both signals are exact.** The proof is binary, the cell count deterministic — no noise,
+  no flaky wins. Every kept design carries a theorem.
+- **Nobody writes proofs.** Not the human, not the AI. One frozen tactic (bit-blast → SAT →
+  formally-verified certificate check) closes equivalence for any circuit the agent invents.
+  Manual proof labor is what kept theorem proving out of hardware for 30 years — industry
+  settled for model checking; that wall is gone.
+- **Three teams, one loop.** Architecture explores, design implements, verification signs
+  off — traditionally three stages, three teams, months of handoffs. Here they collapse into
+  a 3-second iteration: every surviving idea is already implemented, verified, benchmarked.
+- **Results:** an 8-op RISC-style ALU went 175 → 157 cells through genuinely architectural
+  moves — add, sub, and both comparators fused onto **one** carry chain, two whole
+  datapaths deleted, correctness certified over every input.
+- **The gate bites:** the textbook signed-compare overflow bug was tried and rejected with
+  a concrete counterexample (`a = −81, b = 106`) in ~2 seconds.
+- **It can't be gamed:** hash-pinned frozen files, banned-token scan, kernel axiom
+  allowlist — adversary-proof against the very AI it judges.
+- **It scales up:** the same contract fits pipelines, caches, memory subsystems —
+  structure moves freely, the proven property holds still.
+
 ## The idea
 
 [Karpathy's autoresearch](https://github.com/karpathy/autoresearch): no
@@ -109,6 +133,69 @@ sub, *and both comparators* (`sltu = ¬carry_out`, `slt = N⊕V`) deleted two wh
 comparator chains for −18. And the greedy follow-up — dropping slt's overflow
 correction to shave two gates — is the *textbook* signed-compare bug: the prover
 rejected it with a concrete overflow witness, `op=slt, a=−81, b=106`.
+
+## The moves, drawn
+
+**Run 1's win — a gate-level rewrite.** The naive seed spelled every ⊕ out of
+and/or/not; the keep replaced them with native xor cells:
+
+```
+   before — every ⊕ costs 3 cells:                  after — ⊕ is 1 cell:
+
+         ╭──[ OR ]─────────────╮
+   a,b ──┤                     ├──[ AND ]── a⊕b     a,b ──[ XOR ]── a⊕b
+         ╰──[ AND ]──[ NOT ]───╯
+
+   full adder, per bit:   h = a⊕b     sum = h ⊕ c     c' = (a∧b) ∨ (c∧h)
+                                                            40 → 34 cells
+```
+
+**Run 3's win — an architectural change.** Before: every operation owns a
+datapath. After: one carry chain *is* the arithmetic core — subtraction,
+unsigned compare, and signed compare are all taps on it:
+
+```mermaid
+flowchart LR
+    subgraph B["BEFORE — 175 cells: one datapath per op"]
+        a1["ripple adder"] --> M1["8-way mux"]
+        s1["ripple subtractor<br/>(borrow chain)"] --> M1
+        c1["comparator chain 1<br/>→ sltu"] --> M1
+        c2["comparator chain 2<br/>+ sign logic → slt"] --> M1
+        l1["and · or · xor · nor arrays"] --> M1
+    end
+```
+
+```mermaid
+flowchart LR
+    subgraph A["AFTER — 157 cells: one arithmetic core, three taps"]
+        ND["b ⊕ isSub"] --> CH["ONE carry chain<br/>cin = isSub"]
+        CH -- "sum bits → add / sub" --> M2["8-way mux"]
+        CH -- "¬c₈ → sltu" --> M2
+        CH -- "sum₇ ⊕ (c₇⊕c₈) → slt" --> M2
+        l2["and · or · xor · nor arrays"] --> M2
+    end
+```
+
+The three identities that make it legal — each certified by the prover, not by
+inspection:
+
+```
+   a − b    =  a + ¬b + 1                 two's complement
+   a <ᵤ b   =  ¬c₈                        borrow-out of that same chain
+   a <ₛ b   =  sum₇ ⊕ (c₇ ⊕ c₈)           sign ⊕ overflow
+```
+
+**And the move the prover refused.** The greedy follow-up — signed compare from
+the sign bit alone, two cells cheaper:
+
+```
+   tried:   a <ₛ b  =  sum₇                        (drop the overflow term)
+   prover:  ✗  counterexample: op=slt, a=175(−81), b=106
+              −81 − 106 = −187 < −128 — it overflows, and sum₇ lies.
+```
+
+That is the *textbook* signed-comparison bug, rejected mechanically in two
+seconds.
 
 ## Why the loop can't cheat
 
