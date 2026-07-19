@@ -99,10 +99,17 @@ Run on a dedicated branch. LOOP FOREVER:
 6. If the output is empty or the build errored, read `tail -n 50 run.log`. A
    proof failure is a *normal outcome*, not a bug to fix — the circuit was
    wrong. Only debug when the harness itself broke.
-7. Record the row in `results.tsv`.
-8. If `proof: PASS`, `axioms: CLEAN`, and cells improved:
-   `git add results.tsv && git commit --amend --no-edit` to advance the branch.
-9. Otherwise `git reset --hard <previous kept commit>` to discard cleanly.
+7. If `proof: PASS`, `axioms: CLEAN`, and cells strictly improved (or tied
+   with a clear simplification): it is a **keep** — leave the experiment
+   commit in place.
+8. Otherwise it is a **discard**: `git reset --hard HEAD~1` — the tip
+   *before* your experiment commit. Never reset further back to the last
+   kept commit: that also wipes the log commits made since it.
+9. Either way, now append the row to `results.tsv` — citing the experiment
+   commit hash from step 3 — and
+   `git add results.tsv && git commit -m "loop: log <keep|discard> — <desc>"`.
+   Never amend the experiment commit (amending changes the hash the row
+   cites), and never silently drop an iteration.
 
 **Timeouts**: a proof that does not finish is a reject, not a wait. If
 `score.sh` exceeds its timeout, treat it as a failure and revert.

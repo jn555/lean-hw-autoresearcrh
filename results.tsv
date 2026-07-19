@@ -1,4 +1,7 @@
 commit	cells	proof	status	description
 b069e6f	40	PASS	keep	baseline: naive ripple-carry, xor expanded to and/or/not, 3-product majority carry
-353e7ac	34	PASS	keep	xor-native full adder: sum=a^b^c, carry=(a&b)|(c&(a^b))
-202d1fb	34	PASS	discard	mux-form sum (c&~h)|(~c&h) — ABC re-derives the xor, tie at 34, xor form simpler
+202d1fb	34	PASS	keep	xor-native full adder: sum=a^b^c, carry=(a&b)|(c&(a^b))
+bd5cd16	0	FAIL	discard	g/p carry chain with p=a|b reused as half-sum — counterexample a=255 b=255 (p^c wrong when a=b=1)
+37cd677	40	PASS	discard	or-propagate carry (a&b)|((a|b)&c) — correct but +6 cells: loses shared a^b between sum and carry
+404e862	34	PASS	discard	hand-folded bit-0 constant carry — tie at 34 (yosys already const-folds), more verbose source
+3e1f4a6	34	PASS	discard	mux-form sum (c&~h)|(~c&h) — ABC re-derives the xor, tie at 34, xor form simpler
