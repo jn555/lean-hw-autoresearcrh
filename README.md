@@ -19,14 +19,10 @@ cells
 
 ## The idea
 
-[Karpathy's autoresearch](https://github.com/karpathy/autoresearch) showed the
-shape: no orchestration framework, no Python loop driver. The loop is just a
-coding agent following a protocol file — edit one file, run a frozen scorer,
-keep or `git reset --hard`. Applied to ML training, it hill-climbs validation
-loss.
-
-This project points that loop at **hardware**, and something clicks into place
-that ML can't offer:
+[Karpathy's autoresearch](https://github.com/karpathy/autoresearch): no
+orchestration, no loop driver, just an agent following a protocol. Edit one
+file, score it, keep or `git reset --hard`. This project points that loop at
+**hardware**, where something clicks:
 
 | | ML autoresearch | **lean-hw-autoresearch** |
 |---|---|---|
@@ -35,10 +31,9 @@ that ML can't offer:
 | Objective | `val_bpb` (noisy) | **Yosys cell count (deterministic)** |
 | Noise handling | bootstrap over seeds | **none needed** |
 
-A training loss moves ~±0.03 between identical runs, so ML loops need
-statistical gating to avoid chasing noise. Here the verifier is **exact**: the
-proof is binary and the cell count is deterministic. *Every accepted improvement
-is real.* No flaky wins, no optimistic running minimum.
+ML training loss moves ±0.03 between runs, so gates must be statistical. Here:
+the proof is binary, the cell count deterministic. Every kept improvement is
+real — no noise, no flaky runs.
 
 ## How one iteration works
 
@@ -53,20 +48,16 @@ flowchart LR
     R --> A
 ```
 
-The agent edits **one file** — the circuit, written in a tiny deep-embedded HDL
-in Lean 4. A frozen scorer (`score.sh`) then:
+The agent edits **one file** — a circuit in Lean 4. A frozen scorer (`score.sh`):
 
-1. **Proves** the circuit still implements the spec — `∀ inputs, eval circuit = spec` —
-   discharged push-button by `bv_decide` (bit-blasting to SAT, certificate
-   checked back in Lean). The agent never writes a proof; it only supplies
-   circuits. ~1 second per iteration.
-2. **Synthesizes** the emitted Verilog with Yosys/ABC and counts cells.
-3. Prints two signals: `proof:` **gates**, `cells:` **ranks**.
+1. **Proves** `∀ inputs, eval circuit = spec` via `bv_decide` (bit-blast to SAT,
+   certificate verified in Lean). The agent never writes a proof. ~1 second.
+2. **Synthesizes** Verilog to Yosys and counts cells.
+3. Prints `proof:` **gate**, `cells:` **objective**.
 
 ## A real run
 
-From [`results.tsv`](results.tsv) — every row is a git commit in this repo, every
-number came out of the scorer:
+From [`results.tsv`](results.tsv) — every row is a commit, every number from the scorer:
 
 | commit | cells | proof | status | what happened |
 |---|---|---|---|---|
@@ -89,18 +80,17 @@ entire datapath.**
 | `9767615` | **91** | PASS | **keep** | **STRUCTURAL: subtractor deleted** — one shared adder computes `a + (b^isSub) + isSub` |
 | `ce2db96` | **77** | PASS | **keep** | **DON'T-CARE: `isSub = op0` alone** — the arith leg is unselected when `op1=1`, so the guard is provably redundant |
 
-That's a 27% cell reduction from two genuinely *architectural* moves: a
-datapath merge justified by two's-complement algebra, and a cross-boundary
-don't-care exploitation — the kind of edit engineers hesitate over because it's
-only safe *globally*. Here each one is certified by a theorem over all 2^18
-input combinations, in ~3 seconds.
+27% reduction from two architectural moves: datapath merge + cross-boundary
+don't-care — the kind of edits engineers hesitate over because they're only safe
+globally. Each is certified by theorem over all 2^18 input combinations in ~3
+seconds.
 
-Row three of the first run is the other one to stare at: the agent tried a classic carry-lookahead
-optimization with a subtle bug — the kind that ships in real RTL and gets
-caught in silicon. The SAT solver rejected it in ~2 seconds with a concrete
-counterexample. **A cheaper-but-wrong circuit cannot enter this loop.** Not
-"our tests didn't catch a bug" — *there is a machine-checked theorem for every
-kept design.*
+Run 1, row three: the agent tried classic carry-lookahead with a subtle bug —
+the kind that ships in RTL. The SAT solver rejected it in 2 seconds with a
+counterexample. **Cheaper-but-wrong circuits cannot enter.** Not "tests missed a
+bug" — *every kept design has a machine-checked theorem.*
+
+<!-- RUN3 -->
 
 ## Why the loop can't cheat
 
@@ -131,74 +121,65 @@ flowchart TD
   smuggled `sorry`, and a tampered spec were each fed in and each rejected.
   An untested gate is not a gate.
 
+## Why Lean changes the game for hardware
+
+- **One system end-to-end:** spec, circuit, equivalence theorem, Verilog emitter — all in one Lean file. No toolchain seam where meaning silently changes; one `#print axioms` audit covers spec-to-silicon.
+
+- **Proofs are push-button:** `bv_decide` bit-blasts to SAT (CaDiCaL), and the certificate is validated by a *formally verified* LRAT checker in the kernel. The agent never writes a proof — only circuits. Correctness is one tactic line, locked forever.
+
+- **The gate is adversary-proof:** A motivated optimizer cannot fake a theorem past the Lean kernel plus an axiom allowlist. This is exactly what you need when the designer is an AI chasing a score.
+
+- **Verification composes upward:** Unlike commercial netlist checkers (black-box), Lean handles gate-level equivalence *and* refinement, ISA correctness, memory abstraction — same framework all the way up. Radical architectural search stays inside one story.
+
+- **Plain text, open source, git-native** — which makes it agent-native. No vendor lock-in, no black-box artifacts, full auditability.
+
 ## This adder is a proof of concept. The contract is the point.
 
-Everything above runs on an 8-bit adder — deliberately the smallest thing that
-closes the whole loop. But notice what the loop's contract actually says:
+Everything above runs on an 8-bit adder — the smallest close-the-loop proof of
+concept. But the contract generalizes:
 
-> *Any* revision is legal if a theorem certifies the property still holds.
-> *Any* legal revision is kept if a deterministic metric improves.
+> *Any* revision is legal if a theorem certifies it. *Any* legal revision is
+> kept if a deterministic metric improves.
 
-Neither signal cares that the circuit is small, or that the change is local.
-That contract is what changes hardware research:
+**1. Radical redesign becomes safe.** Structural change is normally expensive
+because re-verification is expensive. Here: legality comes from proof, not
+resemblance to the previous design. An agent can rip out carry chains,
+re-encode state, restructure datapaths — the only question is whether the
+theorem still closes. Boldness is free; wrongness is caught in seconds.
 
-**1. Radical redesign becomes safe to search.** In a normal flow, structural
-change is expensive because re-verification is expensive — so exploration stays
-timid, near the known-good design. Here, legality never comes from resembling
-the previous design; it comes from the proof. An agent can rip out the carry
-chain, re-encode the state machine, restructure the datapath — and the only
-question is whether the theorem still closes. **Boldness is free; wrongness is
-caught in seconds.**
+**2. The proven property is stack-wide.** Bit-exact I/O is just the PoC level.
+The same gate design extends to pipelined cores (refinement against ISA spec),
+caches (coherent-memory abstraction), arbiters (no lost requests, bounded
+response), security datapaths (timing invariance). Sequential decomposition:
+supply a relation between spec and implementation state; per-step obligations
+remain finite bitvector goals. The optimizer explores structure; the invariant
+is held by machine, not review.
 
-**2. The proven property can be high-level.** Bit-exact I/O equivalence is just
-the PoC instance. The same gate design extends up the stack:
-
-| redesign target | what the agent may change | what the theorem pins down |
-|---|---|---|
-| combinational blocks *(this repo)* | gate structure, encodings | exact I/O equivalence |
-| pipelined units & cores | depth, forwarding, scheduling | refinement of the ISA-level spec |
-| caches & memory hierarchy | associativity, banking, eviction structure | still implements the coherent-memory abstraction |
-| arbiters, queues, interconnect | arbitration structure | no request lost, bounded response |
-| security-sensitive datapaths | anything | timing-invariance-style properties |
-
-Sequential designs decompose the same way: supply a relation between spec state
-and implementation state, and the per-step obligations remain finite bitvector
-goals — the same push-button SAT as today. The optimizer explores structure;
-the *invariant is held by machine, not by review*.
-
-**3. And it provably actually optimizes.** The other half of the contract is
-just as load-bearing: the objective is a real synthesis metric — cell count
-today; area under a timing constraint, logic depth, or an energy proxy with a
-one-line change to the frozen Yosys script — and it is deterministic. Progress
-is monotone by construction. Point it at a design where the optimal answer
-isn't in a textbook, give it volume (parallel searches in git worktrees,
-overnight, a stronger model when it stalls), and every design the loop ever
-returns comes with a theorem attached.
+**3. It provably actually optimizes.** The objective is a real synthesis metric
+— cell count today; area, depth, or energy proxy with a one-line Yosys edit —
+deterministic and monotone. Point it at a design outside the textbook, give it
+volume (parallel worktrees, overnight, stronger models when stalled), and every
+returned design carries a theorem.
 
 ## What's in the box
 
 ```
-lean/Spec/Alu.lean    the mathematical spec            [frozen]
-lean/Impl/Alu.lean    the circuit — agent-editable     ← the loop lives here
-lean/Equiv/Alu.lean   equivalence theorem, generic
-                      proof: simp + bv_decide          [frozen]
-lean/Dsl.lean         ~60-line gate DSL + Verilog
-                      emitter                          [frozen]
-score.sh              the judge                        [frozen]
-program.md            the protocol the agent follows
-results.tsv           the log — one row per iteration
+lean/Spec/Alu.lean         the spec                  [frozen]
+lean/Impl/Alu.lean         the circuit (editable)     ← the loop lives here
+lean/Equiv/Alu.lean        equivalence + proof        [frozen]
+lean/Dsl.lean              gate DSL + Verilog emitter [frozen]
+score.sh                   the judge                  [frozen]
+program.md                 the protocol
+results.tsv                the log
 ```
 
-No framework. No orchestrator. The "loop driver" is any coding agent reading
-[`program.md`](program.md), which fits on two pages.
+No framework. No orchestrator. The loop driver is any agent reading
+[`program.md`](program.md).
 
-### Run it
-
-Needs Lean 4.32 (via elan), Yosys, and a coding agent — or you, playing one:
-
+**To run:** Lean 4.32 (elan), Yosys, a coding agent (or you):
 ```bash
 ./score.sh                 # judge the current circuit
-# then follow program.md: edit lean/Impl/Alu.lean, commit, score, keep or revert
+# edit lean/Impl/Alu.lean, commit, score, keep or revert per program.md
 ```
 
 ## Honest edges

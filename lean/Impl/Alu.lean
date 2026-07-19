@@ -3,7 +3,7 @@
    Interface contract (the frozen proof depends on it):
    - `Ratchet.Impl.out : Nat → Circuit` must exist; `out i` is output bit i.
    - Input encoding: `.input 0`..`.input 7` = bits of `a` (LSB first),
-     `.input 8`..`.input 15` = bits of `b`, `.input 16`..`.input 17` = op.
+     `.input 8`..`.input 15` = bits of `b`, `.input 16`..`.input 18` = op.
    - Every definition in this file must be tagged `@[simp]`, or the frozen
      proof cannot unfold it and the build fails (a reject, never unsound).
    - Only `import Dsl`. -/
@@ -18,30 +18,62 @@ open Ratchet (Circuit)
 @[simp] def bIn  (i : Nat) : Circuit := .input (8 + i)
 @[simp] def opIn (i : Nat) : Circuit := .input (16 + i)
 
-/- Structural restructure: the subtractor is GONE. One shared adder computes
-   a + (b ^ isSub) + isSub, since a - b = a + (not b) + 1. The arithmetic
-   side of the mux tree collapses to a single leg.
-   op 00 = add, 01 = sub, 10 = and, 11 = xor. -/
-
-@[simp] def isSub : Circuit := opIn 0
-
-@[simp] def bEff (i : Nat) : Circuit := .xor (bIn i) isSub
+/- Seed: every op gets its own datapath; both comparisons get their own
+   dedicated comparator chains. Naive on purpose.
+   op 000 add, 001 sub, 010 and, 011 or, 100 xor, 101 sltu, 110 slt, 111 nor. -/
 
 @[simp] def carry : Nat → Circuit
-  | 0     => isSub
-  | i + 1 => .or (.and (aIn i) (bEff i))
-                 (.and (carry i) (.xor (aIn i) (bEff i)))
+  | 0     => .const false
+  | i + 1 => .or (.and (aIn i) (bIn i))
+                 (.and (carry i) (.xor (aIn i) (bIn i)))
 
-@[simp] def arithBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bEff i)) (carry i)
+@[simp] def addBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (carry i)
+
+@[simp] def borrow : Nat → Circuit
+  | 0     => .const false
+  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
+                 (.and (borrow i) (.not (.xor (aIn i) (bIn i))))
+
+@[simp] def subBit (i : Nat) : Circuit := .xor (.xor (aIn i) (bIn i)) (borrow i)
 
 @[simp] def andBit (i : Nat) : Circuit := .and (aIn i) (bIn i)
+@[simp] def orBit  (i : Nat) : Circuit := .or (aIn i) (bIn i)
 @[simp] def xorBit (i : Nat) : Circuit := .xor (aIn i) (bIn i)
+@[simp] def norBit (i : Nat) : Circuit := .and (.not (aIn i)) (.not (bIn i))
+
+/-- Unsigned a < b, LSB-up chain, dedicated to sltu. -/
+@[simp] def ultC : Nat → Circuit
+  | 0     => .const false
+  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
+                 (.and (.not (.xor (aIn i) (bIn i))) (ultC i))
+
+/-- A second, independent comparator chain, dedicated to slt. -/
+@[simp] def ultS : Nat → Circuit
+  | 0     => .const false
+  | i + 1 => .or (.and (.not (aIn i)) (bIn i))
+                 (.and (.not (.xor (aIn i) (bIn i))) (ultS i))
+
+/-- Signed a < b: signs differ → a is the negative one; else unsigned order. -/
+@[simp] def sltRes : Circuit :=
+  .or (.and (aIn 7) (.not (bIn 7)))
+      (.and (.not (.xor (aIn 7) (bIn 7))) (ultS 8))
+
+@[simp] def sltuBit : Nat → Circuit
+  | 0 => ultC 8
+  | _ => .const false
+
+@[simp] def sltBit : Nat → Circuit
+  | 0 => sltRes
+  | _ => .const false
 
 /-- s = true selects x. -/
 @[simp] def mux (s x y : Circuit) : Circuit := .or (.and s x) (.and (.not s) y)
 
 @[simp] def out (i : Nat) : Circuit :=
-  mux (opIn 1) (mux (opIn 0) (xorBit i) (andBit i))
-               (arithBit i)
+  mux (opIn 2)
+    (mux (opIn 1) (mux (opIn 0) (norBit i) (sltBit i))
+                  (mux (opIn 0) (sltuBit i) (xorBit i)))
+    (mux (opIn 1) (mux (opIn 0) (orBit i) (andBit i))
+                  (mux (opIn 0) (subBit i) (addBit i)))
 
 end Ratchet.Impl

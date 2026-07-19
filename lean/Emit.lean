@@ -1,6 +1,6 @@
 /- FROZEN. Run by score.sh: `lake env lean Emit.lean` (from lean/).
    Writes build/alu.v. The input naming here must match Equiv.env:
-   inputs 0-7 = a[0..7], 8-15 = b[0..7], 16-17 = op[0..1]. Trusted seam. -/
+   inputs 0-7 = a[0..7], 8-15 = b[0..7], 16-18 = op[0..2]. Trusted seam. -/
 
 import Impl.Alu
 
@@ -18,7 +18,7 @@ def nameOf (i : Nat) : String :=
     [ "module alu("
     , "  input  [7:0] a,"
     , "  input  [7:0] b,"
-    , "  input  [1:0] op,"
+    , "  input  [2:0] op,"
     , "  output [7:0] y"
     , ");" ]
     ++ assigns
