@@ -90,7 +90,25 @@ the kind that ships in RTL. The SAT solver rejected it in 2 seconds with a
 counterexample. **Cheaper-but-wrong circuits cannot enter.** Not "tests missed a
 bug" — *every kept design has a machine-checked theorem.*
 
-<!-- RUN3 -->
+### Run 3: a RISC-style 8-op ALU — where architecture gets nuanced
+
+Eight ops (add, sub, and, or, xor, sltu, slt, nor), and the search space starts
+behaving like real microarchitecture:
+
+| commit | cells | proof | status | what happened |
+|---|---|---|---|---|
+| `75bbdc9` | 175 | PASS | **keep** | ALU2 baseline: 8 independent datapaths, two dedicated comparator chains, 3-level mux tree |
+| `e851814` | 180 | PASS | discard | fused add/sub alone — correct but +5: bEff=b^isSub breaks ABC sharing of a^b,a&b with logic/compare paths |
+| `3021f6b` | 157 | PASS | **keep** | UNIFIED CORE: add/sub/sltu(=not carry8)/slt(=N xor V) share ONE carry chain; both comparator chains deleted |
+| `8566406` | — | FAIL | discard | slt=sign(a-b) w/o overflow fix — counterexample op=6 a=175 b=106 (a-b=-187 overflows, sign bit lies) |
+
+Three lessons the loop learned the honest way. The run-2 trick — fusing add/sub —
+**lost on its own** (+5 cells: `b^isSub` breaks synthesis sharing with the logic
+and compare paths). It won only as a **package**: one carry chain serving add,
+sub, *and both comparators* (`sltu = ¬carry_out`, `slt = N⊕V`) deleted two whole
+comparator chains for −18. And the greedy follow-up — dropping slt's overflow
+correction to shave two gates — is the *textbook* signed-compare bug: the prover
+rejected it with a concrete overflow witness, `op=slt, a=−81, b=106`.
 
 ## Why the loop can't cheat
 
