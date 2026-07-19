@@ -2,3 +2,5 @@
 *.olean
 build/
 run.log
+build.log
+yosys.log

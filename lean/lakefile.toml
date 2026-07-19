@@ -1,0 +1,14 @@
+name = "ratchet"
+defaultTargets = ["Equiv"]
+
+[[lean_lib]]
+name = "Dsl"
+
+[[lean_lib]]
+name = "Spec"
+
+[[lean_lib]]
+name = "Impl"
+
+[[lean_lib]]
+name = "Equiv"

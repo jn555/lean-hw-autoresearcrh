@@ -29,16 +29,26 @@ only if it is both **correct** and **cheaper**.
 **You CAN** modify `lean/Impl/Alu.lean` — the circuit structure, gate choices,
 sharing, encoding, the whole implementation. Anything that still proves.
 
+**Interface contract** (the frozen proof and emitter depend on it):
+
+- `Ratchet.Impl.out : Nat → Circuit` must exist; `out i` is output bit i.
+- Input encoding: `.input 0`–`.input 7` are bits of `a` (LSB first),
+  `.input 8`–`.input 15` are bits of `b`.
+- Tag **every** definition you write `@[simp]`, or the frozen proof cannot
+  unfold it and the build fails (that is a reject, never unsoundness).
+- The file may contain only `import Dsl` as its import.
+
 **You CANNOT:**
 
 - Modify `lean/Spec/*` — the spec is ground truth.
 - Modify `lean/Equiv/*` — you do not get to edit the thing that judges you.
 - Modify `score.sh` or the Yosys script — the metric must stay comparable.
 - Use `sorry`, `native_decide`, `axiom`, `unsafe`, `@[implemented_by]`,
-  `partial`, or any `set_option` that weakens checking (`maxHeartbeats 0`,
-  `debug.skipKernelTC`). `native_decide` is the trap: it looks like a proof but
-  trusts the compiler rather than the kernel. `score.sh` checks for these and
-  will fail you.
+  `partial`, `macro`, `elab`, `initialize`, or any `set_option` at all.
+  `native_decide` is the trap: it looks like a proof but trusts the compiler
+  rather than the kernel. `score.sh` enforces all of this by **substring**
+  match on the file — comments included — so keep those words out entirely,
+  and it audits `#print axioms` against an allowlist besides.
 - Add dependencies.
 
 ## The two signals
@@ -46,18 +56,21 @@ sharing, encoding, the whole implementation. Anything that still proves.
 `./score.sh` prints a summary and exits non-zero if the design is illegal:
 
 ```
----
-proof:        PASS
-axioms:       CLEAN
-cells:        142
-depth:        11
+proof:  PASS
+axioms: CLEAN
+cells:  40
 ```
+
+On any violation it prints `proof: FAIL`, `cells: 0`, and a `reason:` line,
+and exits non-zero.
 
 - **`proof`** is a gate, not a score. `FAIL` means the circuit no longer
   implements the spec — revert, no exceptions, no matter how good the cell count
   looks.
-- **`axioms`** must be `CLEAN` (only `propext`, `Classical.choice`,
-  `Quot.sound`). Anything else means a proof was faked.
+- **`axioms`** must be `CLEAN`: only `propext`, `Classical.choice`,
+  `Quot.sound`, plus `bv_decide`'s own `…._native.bv_decide.ax_*` (native
+  execution of Lean's formally verified LRAT certificate checker — expected
+  on every real `bv_decide` proof). Anything else means a proof was faked.
 - **`cells`** is the objective. Lower is better.
 
 **The metric is exact.** Yosys cell count is deterministic — the same circuit
