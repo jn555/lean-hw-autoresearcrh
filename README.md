@@ -77,7 +77,25 @@ number came out of the scorer:
 | `404e862` | 34 | PASS | discard | hand-folded bit-0 constant — tie; Yosys already const-folds |
 | `3e1f4a6` | 34 | PASS | discard | mux-form sum — ABC re-derives the xor; tie, more complex source |
 
-Row three is the one to stare at: the agent tried a classic carry-lookahead
+### Run 2: a 4-op ALU, and the structural payoff
+
+The spec then grew to a real ALU — add / sub / and / xor on a 2-bit opcode — and
+the loop immediately did the thing this project exists for: **it deleted an
+entire datapath.**
+
+| commit | cells | proof | status | what happened |
+|---|---|---|---|---|
+| `0a222f5` | 105 | PASS | **keep** | ALU baseline: 4 independent datapaths + mux tree |
+| `9767615` | **91** | PASS | **keep** | **STRUCTURAL: subtractor deleted** — one shared adder computes `a + (b^isSub) + isSub` |
+| `ce2db96` | **77** | PASS | **keep** | **DON'T-CARE: `isSub = op0` alone** — the arith leg is unselected when `op1=1`, so the guard is provably redundant |
+
+That's a 27% cell reduction from two genuinely *architectural* moves: a
+datapath merge justified by two's-complement algebra, and a cross-boundary
+don't-care exploitation — the kind of edit engineers hesitate over because it's
+only safe *globally*. Here each one is certified by a theorem over all 2^18
+input combinations, in ~3 seconds.
+
+Row three of the first run is the other one to stare at: the agent tried a classic carry-lookahead
 optimization with a subtle bug — the kind that ships in real RTL and gets
 caught in silicon. The SAT solver rejected it in ~2 seconds with a concrete
 counterexample. **A cheaper-but-wrong circuit cannot enter this loop.** Not
